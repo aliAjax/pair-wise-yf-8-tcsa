@@ -3,15 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>胶片分镜条核对台</title>
+    <title>胶片接片工艺复核台</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <main class="shell">
       <header class="hero">
         <div>
-          <p class="eyebrow">纸质放映胶片整理</p>
-          <h1>胶片分镜条核对台</h1>
+          <p class="eyebrow">纸质放映胶片整理 · 接片工艺</p>
+          <h1>胶片接片工艺复核台</h1>
         </div>
         <div class="hero-stats">
           <div>
@@ -19,12 +19,20 @@
             <strong id="totalDuration">0:00</strong>
           </div>
           <div>
-            <span>破损片段</span>
-            <strong id="damageCount">0</strong>
-          </div>
-          <div>
             <span>片段数</span>
             <strong id="segmentCount">0</strong>
+          </div>
+          <div>
+            <span>接片数</span>
+            <strong id="spliceCount">0</strong>
+          </div>
+          <div>
+            <span>待复核接片</span>
+            <strong id="pendingCount">0</strong>
+          </div>
+          <div>
+            <span>破损片段</span>
+            <strong id="damageCount">0</strong>
           </div>
         </div>
       </header>
@@ -65,6 +73,14 @@
               <input id="durationInput" required type="number" min="1" value="12" />
             </label>
             <label>
+              片基材质
+              <select id="baseInput">
+                <option value="醋酸片基">醋酸片基</option>
+                <option value="硝酸片基">硝酸片基</option>
+                <option value="聚酯片基">聚酯片基</option>
+              </select>
+            </label>
+            <label>
               颜色偏移
               <select id="shiftInput">
                 <option value="正常">正常</option>
@@ -99,7 +115,7 @@
         <section class="panel list-panel">
           <div class="panel-head">
             <h2>放映顺序</h2>
-            <span>拖拽片段调整顺序</span>
+            <span>拖拽调整顺序；相邻且片基材质相同的片段可登记胶带接片</span>
           </div>
           <div id="segmentList" class="segment-list"></div>
         </section>
@@ -111,6 +127,9 @@
       </section>
     </main>
 
+    <script src="rules.js"></script>
+    <script src="store.js"></script>
+    <script src="render.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
