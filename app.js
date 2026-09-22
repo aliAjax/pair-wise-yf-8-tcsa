@@ -1,41 +1,17 @@
-const storageKey = "zfl17-film-strip-desk";
+// 接片工艺复核台 —— 事件编排层：
+// 规则判定见 rules.js，浏览器持久化见 store.js，DOM 渲染见 render.js。
 
-const fallbackThumbs = ["#d49b35", "#347d89", "#b54d48", "#4d7656", "#6d6378"];
+let state = window.FilmStore.loadState();
 
-const defaultState = {
-  reelTitle: "春日试映A卷",
-  segments: [
-    {
-      id: crypto.randomUUID(),
-      code: "A-001",
-      duration: 18,
-      shift: "正常",
-      damage: "完好",
-      note: "开场街景，节奏平稳，适合保留原顺序。",
-      thumb: ""
-    },
-    {
-      id: crypto.randomUUID(),
-      code: "A-006",
-      duration: 9,
-      shift: "偏红",
-      damage: "轻微划痕",
-      note: "人物近景左侧有划痕，试映时留意是否明显。",
-      thumb: ""
-    },
-    {
-      id: crypto.randomUUID(),
-      code: "A-012",
-      duration: 14,
-      shift: "褪色",
-      damage: "接片松动",
-      note: "接片位置靠近段尾，放映前建议重新压平。",
-      thumb: ""
-    }
-  ]
+// 只保存界面临时状态：新建接缝草稿、错误提示、操作反馈，不落库。
+let ui = {
+  createOpen: null,
+  draft: null,
+  formErrors: null,
+  expandedSplice: null,
+  notice: null
 };
 
-let state = loadState();
 let draggedId = null;
 
 const els = {
@@ -43,6 +19,7 @@ const els = {
   colorFilter: document.querySelector("#colorFilter"),
   searchInput: document.querySelector("#searchInput"),
   segmentForm: document.querySelector("#segmentForm"),
+  baseInput: document.querySelector("#baseInput"),
   codeInput: document.querySelector("#codeInput"),
   durationInput: document.querySelector("#durationInput"),
   shiftInput: document.querySelector("#shiftInput"),
@@ -50,113 +27,42 @@ const els = {
   thumbInput: document.querySelector("#thumbInput"),
   noteInput: document.querySelector("#noteInput"),
   segmentList: document.querySelector("#segmentList"),
+  reviewList: document.querySelector("#reviewList"),
   warningList: document.querySelector("#warningList"),
+  notice: document.querySelector("#notice"),
   totalDuration: document.querySelector("#totalDuration"),
   damageCount: document.querySelector("#damageCount"),
   segmentCount: document.querySelector("#segmentCount"),
+  spliceCount: document.querySelector("#spliceCount"),
+  pendingCount: document.querySelector("#pendingCount"),
   exportBtn: document.querySelector("#exportBtn")
 };
 
-function loadState() {
-  const saved = localStorage.getItem(storageKey);
-  if (!saved) return structuredClone(defaultState);
-  try {
-    return { ...structuredClone(defaultState), ...JSON.parse(saved) };
-  } catch {
-    return structuredClone(defaultState);
-  }
+function getUiSnapshot() {
+  return {
+    colorFilter: els.colorFilter.value,
+    searchKeyword: els.searchInput.value,
+    createOpen: ui.createOpen,
+    draft: ui.draft,
+    formErrors: ui.formErrors,
+    expandedSplice: ui.expandedSplice,
+    notice: ui.notice
+  };
 }
 
-function saveState() {
-  localStorage.setItem(storageKey, JSON.stringify(state));
+function commit(message, type = "success") {
+  window.FilmStore.saveState(state);
+  ui.notice = { text: message, type };
+  window.FilmView.renderAll(state, getUiSnapshot(), els);
 }
 
-function getFilteredSegments() {
-  const color = els.colorFilter.value;
-  const keyword = els.searchInput.value.trim();
-  return state.segments.filter((item) => {
-    const matchesColor = color === "all" || item.shift === color;
-    const matchesKeyword = !keyword || `${item.code}${item.note}${item.damage}`.includes(keyword);
-    return matchesColor && matchesKeyword;
-  });
+function repaint() {
+  window.FilmView.renderAll(state, getUiSnapshot(), els);
 }
 
-function renderStats() {
-  const total = state.segments.reduce((sum, item) => sum + Number(item.duration), 0);
-  const damaged = state.segments.filter((item) => item.damage !== "完好").length;
-  els.totalDuration.textContent = formatDuration(total);
-  els.damageCount.textContent = damaged;
-  els.segmentCount.textContent = state.segments.length;
-}
-
-function renderList() {
-  const segments = getFilteredSegments();
-  els.segmentList.innerHTML =
-    segments
-      .map((item, index) => {
-        const realIndex = state.segments.findIndex((segment) => segment.id === item.id);
-        const hasDamage = item.damage !== "完好";
-        return `
-          <article class="segment-card" draggable="true" data-id="${item.id}">
-            <div class="thumb">
-              ${
-                item.thumb
-                  ? `<img src="${item.thumb}" alt="${escapeHtml(item.code)}缩略图" />`
-                  : `<div class="film-placeholder" style="background:${fallbackThumbs[realIndex % fallbackThumbs.length]}">${escapeHtml(item.code)}</div>`
-              }
-            </div>
-            <div class="segment-main">
-              <div class="segment-title">
-                <strong>${realIndex + 1}. ${escapeHtml(item.code)}</strong>
-                <span>${formatDuration(item.duration)}</span>
-              </div>
-              <div class="tag-row">
-                <span class="tag">${escapeHtml(item.shift)}</span>
-                <span class="tag ${hasDamage ? "damage" : "ok"}">${escapeHtml(item.damage)}</span>
-              </div>
-              <p class="segment-note">${escapeHtml(item.note || "没有备注。")}</p>
-            </div>
-            <div class="segment-actions">
-              <button type="button" title="上移" data-move-up="${item.id}">↑</button>
-              <button type="button" title="下移" data-move-down="${item.id}">↓</button>
-              <button type="button" title="删除" data-delete="${item.id}">×</button>
-            </div>
-          </article>
-        `;
-      })
-      .join("") || `<p class="empty">没有符合筛选的片段。</p>`;
-}
-
-function renderWarnings() {
-  const warnings = state.segments.filter((item) => item.damage !== "完好" || item.shift !== "正常");
-  els.warningList.innerHTML =
-    warnings
-      .map((item) => {
-        const index = state.segments.findIndex((segment) => segment.id === item.id) + 1;
-        const reasons = [item.shift !== "正常" ? item.shift : "", item.damage !== "完好" ? item.damage : ""].filter(Boolean).join(" · ");
-        return `
-          <div class="warning-item">
-            <strong>${index}. ${escapeHtml(item.code)}</strong>
-            <span>${escapeHtml(reasons)}${item.note ? `：${escapeHtml(item.note)}` : ""}</span>
-          </div>
-        `;
-      })
-      .join("") || `<p class="empty">当前清单没有颜色偏移或破损提醒。</p>`;
-}
-
-function renderAll() {
-  saveState();
-  els.reelTitle.value = state.reelTitle;
-  renderStats();
-  renderList();
-  renderWarnings();
-}
-
-function formatDuration(seconds) {
-  const value = Number(seconds) || 0;
-  const minutes = Math.floor(value / 60);
-  const rest = String(value % 60).padStart(2, "0");
-  return `${minutes}:${rest}`;
+function setNotice(message, type = "error") {
+  ui.notice = { text: message, type };
+  window.FilmView.renderNotice(getUiSnapshot(), els);
 }
 
 function readFileAsDataUrl(file) {
@@ -172,12 +78,21 @@ function readFileAsDataUrl(file) {
   });
 }
 
+function readDraft(form) {
+  const fields = {};
+  form.querySelectorAll("[data-field]").forEach((input) => {
+    fields[input.dataset.field] = input.value;
+  });
+  return fields;
+}
+
 async function addSegment(event) {
   event.preventDefault();
   const thumb = await readFileAsDataUrl(els.thumbInput.files[0]);
   state.segments.push({
     id: crypto.randomUUID(),
     code: els.codeInput.value.trim(),
+    base: els.baseInput.value,
     duration: Number(els.durationInput.value),
     shift: els.shiftInput.value,
     damage: els.damageInput.value,
@@ -186,7 +101,8 @@ async function addSegment(event) {
   });
   els.segmentForm.reset();
   els.durationInput.value = 12;
-  renderAll();
+  els.baseInput.value = "醋酸片基";
+  commit(`片段已加入放映顺序，共 ${state.segments.length} 段。`);
 }
 
 function moveSegment(id, direction) {
@@ -195,39 +111,98 @@ function moveSegment(id, direction) {
   if (index < 0 || target < 0 || target >= state.segments.length) return;
   const [item] = state.segments.splice(index, 1);
   state.segments.splice(target, 0, item);
-  renderAll();
+  // 拖拽/上下移只调整片段顺序，既有接片记录原样保留，不改动接缝本身。
+  ui.createOpen = null;
+  ui.draft = null;
+  ui.formErrors = null;
+  commit("放映顺序已调整，既有接片记录原样保留。");
+}
+
+function deleteSegment(id) {
+  const linked = window.SpliceRules.findSegmentSplice(state.splices, id);
+  if (linked) {
+    // 顺序和既有接片都须原样保留，带接片的片段不允许直接删除。
+    const index = state.segments.findIndex((item) => item.id === id);
+    const code = state.segments[index]?.code || "该片段";
+    setNotice(`${code} 已有接片记录，接片须原样保留，不能删除；请先保留该片段。`);
+    return;
+  }
+  state.segments = state.segments.filter((item) => item.id !== id);
+  ui.createOpen = null;
+  ui.draft = null;
+  ui.formErrors = null;
+  commit("片段已删除，其余片段顺序保持不变。");
+}
+
+function submitSplice(form, realIndex) {
+  const from = state.segments[realIndex];
+  const to = state.segments[realIndex + 1];
+  const fields = readDraft(form);
+  const key = window.FilmView.pairKey(from.id, to.id);
+
+  const draft = {
+    segments: state.segments,
+    splices: state.splices,
+    fromId: from.id,
+    toId: to.id,
+    method: fields.method,
+    tester: (fields.tester || "").trim(),
+    seamLength: fields.seamLength,
+    testResult: fields.testResult
+  };
+
+  // 整次拒绝：任何缺项/超八格/测试不合格都不允许落库，顺序保持原样。
+  const result = window.SpliceRules.validateSpliceDraft(draft);
+  if (!result.ok) {
+    ui.createOpen = key;
+    ui.draft = fields;
+    ui.formErrors = { key, messages: result.errors };
+    setNotice(`接片被整次拒绝：${result.errors.join("；")}`);
+    return;
+  }
+
+  state.splices.push(window.SpliceRules.buildSplice(draft));
+  ui.createOpen = null;
+  ui.draft = null;
+  ui.formErrors = null;
+  commit(`接片已建立并通过摩擦测试：${from.code} → ${to.code}。`);
+}
+
+function markAnomaly(spliceId) {
+  const splice = state.splices.find((item) => item.id === spliceId);
+  if (!splice || splice.status !== window.SpliceRules.STATUS.PASSED) return;
+  // 通过后复测异常：转为待复核，旧状态作为历史保留。
+  const index = state.splices.findIndex((item) => item.id === spliceId);
+  state.splices[index] = window.SpliceRules.markFrictionAnomaly(splice);
+  ui.expandedSplice = spliceId;
+  commit("摩擦测试异常已登记，该接片转为待复核，历史已留存。");
+}
+
+function reviewPass(spliceId) {
+  const splice = state.splices.find((item) => item.id === spliceId);
+  if (!splice || splice.status !== window.SpliceRules.STATUS.PENDING) return;
+  const index = state.splices.findIndex((item) => item.id === spliceId);
+  state.splices[index] = window.SpliceRules.markReviewPassed(splice);
+  commit("复核完成，摩擦测试恢复合格，接片状态已更新。");
 }
 
 function exportList() {
-  const lines = [
-    `胶片卷：${state.reelTitle || "未命名胶片卷"}`,
-    `总时长：${formatDuration(state.segments.reduce((sum, item) => sum + Number(item.duration), 0))}`,
-    "",
-    ...state.segments.map((item, index) => `${index + 1}. ${item.code}｜${formatDuration(item.duration)}｜${item.shift}｜${item.damage}｜${item.note || "无备注"}`)
-  ];
-  const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+  const text = window.FilmView.buildExportText(state);
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = `${state.reelTitle || "film-reel"}-checklist.txt`;
+  link.download = `${state.reelTitle || "film-reel"}-splice-review.txt`;
   link.click();
   URL.revokeObjectURL(link.href);
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+  setNotice("清单（含接片与复核历史）已导出。", "success");
 }
 
 els.reelTitle.addEventListener("input", () => {
   state.reelTitle = els.reelTitle.value;
-  saveState();
+  window.FilmStore.saveState(state);
 });
-els.colorFilter.addEventListener("change", renderList);
-els.searchInput.addEventListener("input", renderList);
+els.colorFilter.addEventListener("change", repaint);
+els.searchInput.addEventListener("input", repaint);
 els.segmentForm.addEventListener("submit", addSegment);
 els.exportBtn.addEventListener("click", exportList);
 
@@ -235,12 +210,57 @@ els.segmentList.addEventListener("click", (event) => {
   const up = event.target.closest("[data-move-up]");
   const down = event.target.closest("[data-move-down]");
   const remove = event.target.closest("[data-delete]");
-  if (up) moveSegment(up.dataset.moveUp, -1);
-  if (down) moveSegment(down.dataset.moveDown, 1);
-  if (remove) {
-    state.segments = state.segments.filter((item) => item.id !== remove.dataset.delete);
-    renderAll();
+  const open = event.target.closest("[data-splice-open]");
+  const cancel = event.target.closest("[data-splice-cancel]");
+  const toggle = event.target.closest("[data-splice-toggle]");
+  const anomaly = event.target.closest("[data-anomaly]");
+  const reviewPassBtn = event.target.closest("[data-review-pass]");
+
+  if (up) return moveSegment(up.dataset.moveUp, -1);
+  if (down) return moveSegment(down.dataset.moveDown, 1);
+  if (remove) return deleteSegment(remove.dataset.delete);
+  if (anomaly) return markAnomaly(anomaly.dataset.anomaly);
+  if (reviewPassBtn) return reviewPass(reviewPassBtn.dataset.reviewPass);
+
+  if (toggle) {
+    const id = toggle.dataset.spliceToggle;
+    ui.expandedSplice = ui.expandedSplice === id ? null : id;
+    return repaint();
   }
+
+  if (cancel) {
+    // 取消不改动顺序，也不留下任何接缝。
+    ui.createOpen = null;
+    ui.draft = null;
+    ui.formErrors = null;
+    ui.notice = null;
+    return repaint();
+  }
+
+  if (open) {
+    const index = Number(open.dataset.spliceOpen);
+    const from = state.segments[index];
+    const to = state.segments[index + 1];
+    if (!from || !to) return;
+    ui.createOpen = window.FilmView.pairKey(from.id, to.id);
+    ui.draft = null;
+    ui.formErrors = null;
+    ui.notice = null;
+    return repaint();
+  }
+});
+
+els.segmentList.addEventListener("submit", (event) => {
+  const form = event.target.closest(".splice-form");
+  if (!form) return;
+  event.preventDefault();
+  const submit = form.querySelector("[data-splice-submit]");
+  submitSplice(form, Number(submit.dataset.spliceSubmit));
+});
+
+els.reviewList.addEventListener("click", (event) => {
+  const pass = event.target.closest("[data-review-pass]");
+  if (pass) reviewPass(pass.dataset.reviewPass);
 });
 
 els.segmentList.addEventListener("dragstart", (event) => {
@@ -265,7 +285,9 @@ els.segmentList.addEventListener("dragover", (event) => {
   if (fromIndex < 0 || toIndex < 0) return;
   const [item] = state.segments.splice(fromIndex, 1);
   state.segments.splice(toIndex, 0, item);
-  renderAll();
+  draggedId = item.id;
+  window.FilmStore.saveState(state);
+  repaint();
 });
 
-renderAll();
+repaint();

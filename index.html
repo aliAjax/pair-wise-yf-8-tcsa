@@ -3,15 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>胶片分镜条核对台</title>
+    <title>胶片接片工艺复核台</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <main class="shell">
       <header class="hero">
         <div>
-          <p class="eyebrow">纸质放映胶片整理</p>
-          <h1>胶片分镜条核对台</h1>
+          <p class="eyebrow">纸质放映胶片整理 · 接片工艺复核</p>
+          <h1>胶片接片工艺复核台</h1>
         </div>
         <div class="hero-stats">
           <div>
@@ -19,12 +19,20 @@
             <strong id="totalDuration">0:00</strong>
           </div>
           <div>
+            <span>片段数</span>
+            <strong id="segmentCount">0</strong>
+          </div>
+          <div>
             <span>破损片段</span>
             <strong id="damageCount">0</strong>
           </div>
           <div>
-            <span>片段数</span>
-            <strong id="segmentCount">0</strong>
+            <span>接片记录</span>
+            <strong id="spliceCount">0</strong>
+          </div>
+          <div>
+            <span>待复核接缝</span>
+            <strong id="pendingCount">0</strong>
           </div>
         </div>
       </header>
@@ -47,9 +55,9 @@
         </label>
         <label>
           搜索
-          <input id="searchInput" type="search" placeholder="片段编号或备注" />
+          <input id="searchInput" type="search" placeholder="片段编号、片基材质或备注" />
         </label>
-        <button id="exportBtn">导出清单</button>
+        <button id="exportBtn">导出清单（含接片）</button>
       </section>
 
       <section class="layout">
@@ -59,6 +67,14 @@
             <label>
               片段编号
               <input id="codeInput" required placeholder="A-014" />
+            </label>
+            <label>
+              片基材质
+              <select id="baseInput">
+                <option value="醋酸片基">醋酸片基</option>
+                <option value="硝酸片基">硝酸片基</option>
+                <option value="聚酯片基">聚酯片基</option>
+              </select>
             </label>
             <label>
               时长秒数
@@ -98,19 +114,26 @@
 
         <section class="panel list-panel">
           <div class="panel-head">
-            <h2>放映顺序</h2>
-            <span>拖拽片段调整顺序</span>
+            <h2>放映顺序与接片接缝</h2>
+            <span>相邻同材质片段可登记胶带接片，拖拽仅调顺序，接缝原样保留</span>
           </div>
+          <div id="notice" class="notice" role="status"></div>
           <div id="segmentList" class="segment-list"></div>
         </section>
 
         <aside class="panel warning-panel">
-          <h2>试映前核对</h2>
+          <h2>接片复核台</h2>
+          <h3 class="subhead">待复核接缝</h3>
+          <div id="reviewList" class="warning-list"></div>
+          <h3 class="subhead">试映前核对</h3>
           <div id="warningList" class="warning-list"></div>
         </aside>
       </section>
     </main>
 
+    <script src="rules.js"></script>
+    <script src="store.js"></script>
+    <script src="render.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
